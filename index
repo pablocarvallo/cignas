@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de gastos médicos</title>
+    <!-- Incluye Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f7f7; }
+        .ios-card {
+            background-color: white;
+            border-radius: 18px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 16px;
+        }
+        .ios-button {
+            border-radius: 12px;
+            padding: 10px 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .primary-button {
+            background-color: #007aff; /* Azul de iOS */
+            color: white;
+        }
+        .primary-button:hover {
+            background-color: #005bb5;
+        }
+        .danger-button {
+            background-color: #ff3b30; /* Rojo de iOS */
+            color: white;
+        }
+        .danger-button:hover {
+            background-color: #c70000;
+        }
+        .tab-button {
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tab-active {
+            background-color: #007aff;
+            color: white;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            background-color: #e5e5e5;
+            color: #4b5563;
+        }
+        input[type="date"], input[type="number"], input[type="text"], select {
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            border-color: #007aff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+        }
+        .record-item:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+
+    <script type="module">
+        // Clave para el almacenamiento local
+        const STORAGE_KEY = 'family_medical_expenses';
+
+        const PEOPLE = ['lore', 'jose', 'emi', 'pablo'];
+        const CATEGORIES = ['consulta', 'receta', 'examen'];
+
+        // --- Utility Functions ---
+
+        // Función para convertir timestamp (milisegundos) a formato DD/MMM
+        const formatDate = (dateInMs) => {
+            if (!dateInMs) return 'N/A';
+            const date = new Date(dateInMs);
+            return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+        };
+
+        // Función para formatear el monto a moneda (CLP)
+        const formatAmount = (amount) => {
+            if (typeof amount !== 'number' || isNaN(amount)) return '$0';
+            return amount.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 });
+        };
+
+        // --- LocalStorage Operations (Persistence) ---
+
+        function loadRecords() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error("Error al cargar datos de localStorage:", e);
+                return [];
+            }
+        }
+
+        function saveRecords(records) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {
+                console.error("Error al guardar datos en localStorage:", e);
+            }
+        }
+
+        async function addExpense(expense) {
+            const records = loadRecords();
+            
+            const newRecord = {
+                id: crypto.randomUUID(), // ID único para poder eliminarlo
+                ...expense,
+                timestamp: Date.now() // Timestamp en milisegundos para orden y formato
+            };
+
+            records.push(newRecord);
+            saveRecords(records);
+            
+            // Renderiza la app inmediatamente
+            renderApp(records); 
+
+            showMessage('Gasto registrado con éxito.', 'success');
+        }
+        
+        // --- Rendering and UI Logic ---
+
+        // Función principal de renderizado (reemplaza el listener de Firestore)
+        function renderApp(initialRecords = null) {
+            const records = initialRecords || loadRecords();
+
+            // Ordena por fecha descendente (más reciente primero)
+            records.sort((a, b) => b.timestamp - a.timestamp);
+            
+            renderDetailList(records);
+            renderTotals(records);
+
+            document.getElementById('status-message').textContent = `Almacenamiento Local. ${records.length} registros cargados.`;
+        }
+
+        function showMessage(text, type = 'info') {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = text;
+            messageBox.className = `p-3 mb-4 rounded-xl text-white font-medium ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+            }`;
+            messageBox.style.display = 'block';
+            setTimeout(() => { messageBox.style.display = 'none'; }, 5000);
+        }
+
+        function renderDetailList(records) {
+            const listContainer = document.getElementById('records-list');
+            listContainer.innerHTML = '';
+            
+            if (records.length === 0) {
+                listContainer.innerHTML = '<p class="text-center text-gray-500 py-4">No hay gastos registrados aún.</p>';
+                return;
+            }
+
+            records.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'record-item flex justify-between items-center p-3 border-b border-gray-100 last:border-b-0';
+                
+                const dateFormatted = formatDate(record.timestamp);
+                const amountFormatted = formatAmount(record.amount);
+
+                item.innerHTML = `
+                    <div class="flex-grow min-w-0">
+                        <p class="text-sm font-semibold text-gray-800 capitalize">${record.person}, <span class="text-xs text-gray-500">${dateFormatted}</span></p>
+                        <p class="text-xs text-gray-600 truncate">${record.category} - ${record.detail}</p>
+                    </div>
+                    <div class="text-right ml-4">
+                        <p class="font-bold text-lg text-red-600">${amountFormatted}</p>
+                    </div>
+                    <button data-id="${record.id}" class="delete-btn ml-3 text-gray-400 hover:text-red-500 transition-colors" title="Eliminar">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.858 48.858 0 0 0-3.41-1.02m.001-.197.888-.363 4.25-1.74a.75.75 0 0 0-.66-1.317l-15.688 6.425a.75.75 0 0 0-.49 1.391l4.985 2.036 3.635-7.465a.75.75 0 0 1 .49-.49l7.465-3.635Z" />
+                        </svg>
+                    </button>
+                `;
+                listContainer.appendChild(item);
+            });
+            
+            // Adjuntar listeners de eventos
+            listContainer.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', handleDeleteRecord);
+            });
+        }
+
+        function renderTotals(records) {
+            const totals = PEOPLE.reduce((acc, p) => ({ ...acc, [p]: 0 }), {});
+
+            records.forEach(record => {
+                if (record.person && typeof record.amount === 'number') {
+                    totals[record.person] += record.amount;
+                }
+            });
+
+            const totalsContainer = document.getElementById('totals-container');
+            totalsContainer.innerHTML = '';
+            
+            // Ordena totales descendente
+            const sortedTotals = Object.entries(totals)
+                .sort(([, a], [, b]) => b - a);
+
+            sortedTotals.forEach(([person, total]) => {
+                const item = document.createElement('div');
+                item.className = 'ios-card mb-3 p-4 flex justify-between items-center';
+                item.innerHTML = `
+                    <p class="text-lg font-semibold capitalize">${person}</p>
+                    <p class="text-xl font-extrabold text-blue-700">${formatAmount(total)}</p>
+                `;
+                totalsContainer.appendChild(item);
+            });
+        }
+
+
+        // --- Event Handlers ---
+
+        async function handleDeleteRecord(event) {
+            const button = event.currentTarget;
+            const recordId = button.getAttribute('data-id');
+
+            // Custom confirmation Modal (simulado debido a la regla de no-alert)
+            if (!(await confirmAction('¿Estás seguro de que quieres eliminar este registro?'))) return;
+            
+            try {
+                let records = loadRecords();
+                const initialLength = records.length;
+                
+                // Filtra para remover el registro
+                records = records.filter(record => record.id !== recordId);
+
+                if (records.length < initialLength) {
+                    saveRecords(records);
+                    renderApp(records); // Vuelve a renderizar
+                    showMessage('Registro eliminado.', 'success');
+                } else {
+                    showMessage('Error: Registro no encontrado.', 'error');
+                }
+            } catch (e) {
+                console.error("Error al remover el registro: ", e);
+                showMessage('Error al eliminar el registro.', 'error');
+            }
+        }
+        
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const person = form.person.value;
+            const category = form.category.value;
+            const dateInput = form.expenseDate.value;
+            const amount = parseFloat(form.amount.value);
+            const detail = form.detail.value.trim();
+
+            if (!person || !category || !dateInput || isNaN(amount) || amount <= 0 || !detail) {
+                showMessage('Por favor, completa todos los campos correctamente.', 'error');
+                return;
+            }
+
+            const newExpense = {
+                person,
+                category,
+                detail,
+                amount,
+                date: dateInput // Guardar fecha como string "YYYY-MM-DD"
+            };
+
+            await addExpense(newExpense);
+            form.reset();
+            // Restablecer la fecha actual después del envío exitoso
+            document.getElementById('expense-date').valueAsDate = new Date();
+        }
+
+        async function handleResetAll() {
+            if (!(await confirmAction('ADVERTENCIA: ¿Estás seguro de que quieres ELIMINAR TODOS los registros? Esta acción es irreversible.'))) return;
+
+            try {
+                const records = loadRecords();
+                if (records.length === 0) {
+                    showMessage('No hay registros para eliminar.', 'info');
+                    return;
+                }
+
+                localStorage.removeItem(STORAGE_KEY);
+                renderApp([]); // Vuelve a renderizar con la lista vacía
+                showMessage(`¡Todos los ${records.length} registros han sido eliminados!`, 'success');
+            } catch (e) {
+                console.error("Error al resetear registros: ", e);
+                showMessage('Error al resetear los registros.', 'error');
+            }
+        }
+
+        async function handleExport() {
+            try {
+                const records = loadRecords();
+                let exportData = '';
+                
+                // Encabezado (separado por tabulaciones)
+                exportData += 'Persona\tCategoría\tFecha\tDetalle\tMonto\n';
+
+                records.forEach((data) => {
+                    // Usa el timestamp almacenado para el formato de fecha
+                    const dateFormatted = formatDate(data.timestamp).replace(/\//g, ' '); // Ej: 01 dic
+                    // Remueve símbolos de moneda y separadores de miles para la exportación
+                    const amountFormatted = formatAmount(data.amount).replace(/\$/g, '').replace(/\./g, '').replace(/,/g, ''); 
+
+                    // Formato: pablo, consulta, 01/dic, dermatóloga, $70.000 (separado por tabulación)
+                    const line = `${data.person}\t${data.category}\t${dateFormatted}\t${data.detail}\t$${amountFormatted}\n`;
+                    exportData += line;
+                });
+                
+                if (exportData.length === 0) {
+                    showMessage('No hay datos para exportar.', 'info');
+                    return;
+                }
+
+                copyToClipboard(exportData);
+                showMessage('Datos exportados y copiados al portapapeles. ¡Listo para pegar en Excel!', 'success');
+
+            } catch (e) {
+                console.error("Error al exportar datos: ", e);
+                showMessage('Error al preparar los datos para la exportación.', 'error');
+            }
+        }
+        
+        // --- Custom UI functions (No native alert/confirm) ---
+
+        function copyToClipboard(text) {
+            // Usando un fallback para entornos donde navigator.clipboard está restringido
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed'; 
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback: No se pudo copiar el texto: ', err);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function confirmAction(message) {
+             const confirmationModal = document.getElementById('confirmation-modal');
+             const confirmText = document.getElementById('confirm-text');
+             
+             confirmText.textContent = message;
+             confirmationModal.classList.remove('hidden');
+
+             return new Promise(resolve => {
+                 document.getElementById('modal-confirm-btn').onclick = () => {
+                     confirmationModal.classList.add('hidden');
+                     resolve(true);
+                 };
+                 document.getElementById('modal-cancel-btn').onclick = () => {
+                     confirmationModal.classList.add('hidden');
+                     resolve(false);
+                 };
+             });
+        }
+
+        function showTab(tabName) {
+            const detailView = document.getElementById('detalle-view');
+            const totalsView = document.getElementById('totales-view');
+            const detailBtn = document.getElementById('detalle-tab-btn');
+            const totalsBtn = document.getElementById('totales-tab-btn');
+
+            if (tabName === 'detalle') {
+                detailView.classList.remove('hidden');
+                totalsView.classList.add('hidden');
+                detailBtn.classList.add('tab-active');
+                detailBtn.classList.remove('tab-inactive');
+                totalsBtn.classList.add('tab-inactive');
+                totalsBtn.classList.remove('tab-active');
+            } else if (tabName === 'totales') {
+                detailView.classList.add('hidden');
+                totalsView.classList.remove('hidden');
+                totalsBtn.classList.add('tab-active');
+                totalsBtn.classList.remove('tab-inactive');
+                detailBtn.classList.add('tab-inactive');
+                detailBtn.classList.remove('tab-active');
+            }
+        }
+
+        // --- Initialization ---
+
+        window.onload = () => {
+            // Establece la fecha por defecto a hoy
+            document.getElementById('expense-date').valueAsDate = new Date();
+
+            // Carga y renderiza los datos desde localStorage al iniciar
+            renderApp();
+
+            // Configura los listeners de eventos
+            document.getElementById('expense-form').addEventListener('submit', handleFormSubmit);
+            document.getElementById('reset-btn').addEventListener('click', handleResetAll);
+            document.getElementById('export-btn').addEventListener('click', handleExport);
+
+            // Navegación por pestañas
+            document.getElementById('detalle-tab-btn').addEventListener('click', () => showTab('detalle'));
+            document.getElementById('totales-tab-btn').addEventListener('click', () => showTab('totales'));
+
+            // Vista inicial
+            showTab('detalle');
+        };
+        
+    </script>
+</head>
+<body class="p-4 sm:p-6">
+    <div class="max-w-xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">🏥 Control de Gastos Médicos</h1>
+        
+        <!-- Status and Message Box -->
+        <div id="message-box" class="hidden mb-4 p-3 rounded-xl text-sm font-medium text-center" role="alert"></div>
+        <div id="status-message" class="text-center text-xs text-gray-500 mb-4">Cargando datos...</div>
+
+        <!-- Tab Navigation -->
+        <div class="flex justify-center mb-6 p-1 bg-gray-200 rounded-xl">
+            <button id="detalle-tab-btn" class="tab-button flex-1 tab-active">Detalle</button>
+            <button id="totales-tab-btn" class="tab-button flex-1 tab-inactive">Totales</button>
+        </div>
+
+        <!-- DETALLE View (Pestaña 1) -->
+        <div id="detalle-view" class="space-y-6">
+            
+            <!-- Formulario de Ingreso de Gasto -->
+            <div class="ios-card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Añadir Nuevo Gasto</h2>
+                <form id="expense-form" class="grid grid-cols-2 gap-4">
+                    
+                    <div>
+                        <label for="person" class="block text-sm font-medium text-gray-700 mb-1">Persona</label>
+                        <select id="person" name="person" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="lore">Lore</option>
+                            <option value="jose">Jose</option>
+                            <option value="emi">Emi</option>
+                            <option value="pablo">Pablo</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                        <select id="category" name="category" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="consulta">Consulta</option>
+                            <option value="receta">Receta</option>
+                            <option value="examen">Examen</option>
+                        </select>
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="expense-date" class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                        <input type="date" id="expense-date" name="expenseDate" required>
+                    </div>
+                    
+                    <div class="col-span-1">
+                        <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
+                        <input type="number" id="amount" name="amount" min="1" step="any" placeholder="Ej: 70000" required>
+                    </div>
+                    
+                    <div class="col-span-2">
+                        <label for="detail" class="block text-sm font-medium text-gray-700 mb-1">Detalle (Ej: Dermatóloga)</label>
+                        <input type="text" id="detail" name="detail" placeholder="Descripción breve de la atención" required>
+                    </div>
+
+                    <div class="col-span-2 mt-2">
+                        <button type="submit" class="ios-button primary-button w-full">
+                            Registrar Gasto
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Historial de Registros -->
+            <div class="ios-card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Historial de Gastos (Detalle)</h2>
+                <div id="records-list" class="divide-y divide-gray-200">
+                    <!-- Registros se inyectarán aquí -->
+                    <p class="text-center text-gray-500 py-4">Cargando registros...</p>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="flex flex-col space-y-4 pt-2">
+                <button id="export-btn" class="ios-button bg-green-500 hover:bg-green-600 text-white w-full">
+                    Exportar a Texto Plano (Copiar para Excel)
+                </button>
+                <button id="reset-btn" class="ios-button danger-button w-full">
+                    ⚠️ Resetear Todos los Registros
+                </button>
+            </div>
+        </div>
+
+        <!-- TOTALES View (Pestaña 2) -->
+        <div id="totales-view" class="space-y-6 hidden">
+            <div class="ios-card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Totales Consolidados por Persona</h2>
+                <div id="totals-container" class="divide-y divide-gray-100">
+                    <!-- Totales se inyectarán aquí -->
+                    <p class="text-center text-gray-500 py-4">Calculando totales...</p>
+                </div>
+                <p class="text-sm text-gray-500 mt-4 text-center">Datos cargados desde el almacenamiento local.</p>
+            </div>
+        </div>
+        
+        <!-- Modal de Confirmación (Reemplazo de alert/confirm) -->
+        <div id="confirmation-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+                <h3 class="text-lg font-bold mb-3">Confirmación Necesaria</h3>
+                <p id="confirm-text" class="mb-5 text-gray-700">¿Estás seguro de realizar esta acción?</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="modal-cancel-btn" class="ios-button bg-gray-200 text-gray-800 hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button id="modal-confirm-btn" class="ios-button danger-button">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
