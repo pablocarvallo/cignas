@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registro de Gastos Médicos</title>
+    
+    <!-- PWA / iOS Standalone Mode (para que se vea como app nativa al guardar en Home Screen) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Gastos Familiares">
+    
     <!-- Incluye Tailwind CSS para un diseño moderno y responsivo -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -496,7 +502,7 @@
                     
                     <div class="col-span-1">
                         <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
-                        <!-- CORRECCIÓN: Se agrega inputmode="decimal" para forzar el teclado numérico en móviles -->
+                        <!-- Se mantiene inputmode="decimal" para el teclado numérico y se asegura type="number" -->
                         <input type="number" id="amount" name="amount" min="1" step="any" placeholder="Ej: 70000" required inputmode="decimal">
                     </div>
                     
@@ -564,3 +570,4 @@
     </div>
 </body>
 </html>
+
